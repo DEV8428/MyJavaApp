@@ -2,11 +2,12 @@ pipeline {
   agent any
 
   tools {
-    maven 'Maven'     // The Maven installation you configured in Jenkins
-    jdk 'Java17'      // The JDK you configured in Jenkins
+    maven 'Maven'
+    jdk 'Java17'
   }
 
   stages {
+
     stage('Checkout') {
       steps {
         git branch: 'main', url: 'https://github.com/DEV8428/MyJavaApp.git'
@@ -18,18 +19,36 @@ pipeline {
         sh 'mvn clean compile'
       }
     }
+
     stage('Test') {
       steps {
-        // if you have tests in future; for now just compile
         sh 'mvn test || true'
       }
     }
+
     stage('Package') {
       steps {
         sh 'mvn package'
       }
     }
-    // You can add more stages later: e.g. deploy
-  }
-}
+
+    stage('Deploy to Test Server') {
+      steps {
+        sshagent(['d591e1a7-05b7-404a-ad99-8b295b95cb46']) {  // Your Jenkins Credential ID
+          sh '''
+            echo "Copying WAR to Test Server..."
+            scp target/*.war manisha@172.19.182.35:/tmp/MyApp.war
+
+            echo "Deploying WAR to Tomcat..."
+            ssh manisha@172.19.182.35 "
+              sudo mv /tmp/MyApp.war /var/lib/tomcat9/webapps/MyApp.war &&
+              sudo systemctl restart tomcat9
+            "
+          '''
+        }
+      }
+    }
+
+  } // end stages
+} // end pipeline
 
