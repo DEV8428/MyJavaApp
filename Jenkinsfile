@@ -6,6 +6,10 @@ pipeline {
     jdk 'Java17'
   }
 
+  environment {
+    MAVEN_OPTS = '-Dmaven.repo.local=/path/to/your/cache/.m2'  // Optional for caching
+  }
+
   stages {
 
     stage('Checkout') {
@@ -16,13 +20,15 @@ pipeline {
 
     stage('Build') {
       steps {
-        sh 'mvn clean compile'
+        sh 'mvn clean install'
       }
     }
 
     stage('Test') {
       steps {
-        sh 'mvn test || true'
+        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+          sh 'mvn test'
+        }
       }
     }
 
@@ -32,23 +38,12 @@ pipeline {
       }
     }
 
-    stage('Deploy to Test Server') {
-      steps {
-        sshagent(['d591e1a7-05b7-404a-ad99-8b295b95cb46']) {  // Your Jenkins Credential ID
-          sh '''
-            echo "Copying WAR to Test Server..."
-            scp target/*.war manisha@172.19.182.35:/tmp/MyApp.war
-
-            echo "Deploying WAR to Tomcat..."
-            ssh manisha@172.19.182.35 "
-              sudo mv /tmp/MyApp.war /var/lib/tomcat9/webapps/MyApp.war &&
-              sudo systemctl restart tomcat9
-            "
-          '''
-        }
-      }
-    }
-
   } // end stages
-} // end pipeline
+  
+  post {
+    always {
+      cleanWs()  // Clean up workspace after the build
+    }
+  }
 
+} // end pipeline
